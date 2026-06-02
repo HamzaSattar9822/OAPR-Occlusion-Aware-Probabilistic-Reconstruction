@@ -1,0 +1,106 @@
+---
+# Milestone 3: OAPR Complete Model with Occlusion Module + Robust Loss
+# Configuration for full framework with occlusion-aware reconstruction
+
+experiment:
+  name: "oapr_m3_complete"
+  output_dir: "checkpoints/oapr_m3"
+  log_dir: "logs/oapr_m3"
+  seed: 42
+
+model:
+  name: "oapr_complete"
+  num_keypoints: 17
+  sigma: 2.0                  # Gaussian heatmap standard deviation
+  
+  # Spatiotemporal backbone (M2)
+  seq_len: 7
+  hidden_size: 256
+  num_heads: 8
+  num_spatial_layers: 4        # Increased from M2
+  use_mamba: true
+  backbone_type: "mamba"
+  
+  # Occlusion-aware module (M3 core contribution)
+  occlusion_threshold: 0.5
+  reconstruct_occluded: true   # Enable occlusion reconstruction
+  
+  # Input/output
+  image_size: [192, 256]
+  heatmap_size: [64, 48]
+
+dataset:
+  name: "coco"
+  root: "./data/coco"
+  train_ann: "annotations/person_keypoints_train2017.json"
+  val_ann: "annotations/person_keypoints_val2017.json"
+  image_size: [192, 256]
+  heatmap_size: [64, 48]
+  
+  augmentation:
+    flip: true
+    flip_pairs:
+      - [1, 2]
+      - [3, 4]
+      - [5, 6]
+      - [7, 8]
+      - [9, 10]
+      - [11, 12]
+      - [13, 14]
+      - [15, 16]
+    rotation: 40
+    scale: [0.65, 1.35]
+    color_jitter: true
+    # Extra augmentation for occlusion robustness
+    erasing_prob: 0.2           # Random occlusion simulation
+    occlusion_patch_size: [20, 40]
+
+training:
+  epochs: 150
+  batch_size: 16
+  num_workers: 8
+  pin_memory: true
+  
+  optimizer:
+    type: "adam"
+    lr: 0.0005
+    weight_decay: 0.0001
+  
+  scheduler:
+    type: "multistep"
+    milestones: [100, 130]
+    gamma: 0.1
+  
+  # M3: Robust probabilistic losses
+  loss:
+    type: "cauchy_mixture"      # Heavy-tailed distribution
+    scale_loss_weight: 0.1      # Uncertainty regularization
+    occlusion_loss_weight: 0.15 # Occlusion-aware weighting
+    use_target_weight: true
+  
+  amp: true
+  clip_grad_norm: 1.0
+  
+  # Warmup for stable training
+  warmup_epochs: 10
+  warmup_lr: 0.00001
+
+evaluation:
+  interval: 5
+  flip_test: true
+  post_processing: "dark"
+  
+  # M3 specific evaluations
+  compute_occlusion_metrics: true      # Evaluate occlusion robustness
+  compute_temporal_stability: true     # Frame consistency
+  crowdpose_eval: true                 # Evaluate on CrowdPose
+
+logging:
+  use_tensorboard: true
+  print_freq: 50
+  save_checkpoint_freq: 5
+  log_occlusion_detections: true       # Log occlusion predictions
+
+hardware:
+  gpus: [0]
+  distributed: false

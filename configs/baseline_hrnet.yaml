@@ -1,0 +1,88 @@
+# configs/baseline_hrnet.yaml
+# HRNet-W32 baseline configuration for OAPR Milestone 1
+# Uses pretrained ImageNet + COCO weights for strong starting point
+
+# ─── Experiment ───────────────────────────────────────────────
+experiment:
+  name: "hrnet_w32_baseline"
+  output_dir: "checkpoints/hrnet_baseline"
+  log_dir: "logs/hrnet_baseline"
+  seed: 42
+
+# ─── Model ────────────────────────────────────────────────────
+model:
+  name: "hrnet"
+  version: "w32"                     # w32 or w48 (w48 is heavier but stronger)
+  pretrained: true
+  pretrained_path: null              # null = auto-download from timm
+  num_keypoints: 17                  # COCO: 17, CrowdPose: 14
+  heatmap_size: [64, 48]             # [W, H] output heatmap resolution
+  sigma: 2                           # Gaussian sigma for target heatmaps
+
+# ─── Dataset ──────────────────────────────────────────────────
+dataset:
+  name: "coco"                       # "coco" or "crowdpose"
+  root: "./data/coco"
+  train_ann: "annotations/person_keypoints_train2017.json"
+  val_ann: "annotations/person_keypoints_val2017.json"
+  image_size: [192, 256]             # [W, H] input crop size (standard COCO)
+  train_split_ratio: 0.70            # 70% train / 30% test per project spec
+
+  # Augmentation
+  augmentation:
+    flip: true
+    flip_pairs: [[1,2],[3,4],[5,6],[7,8],[9,10],[11,12],[13,14],[15,16]]
+    rotation: 40                     # degrees
+    scale: [0.65, 1.35]
+    color_jitter: true
+
+# ─── Training ─────────────────────────────────────────────────
+training:
+  epochs: 210
+  batch_size: 32                     # per GPU — reduce to 16 if OOM
+  num_workers: 8
+  pin_memory: true
+
+  optimizer:
+    type: "adam"
+    lr: 0.001
+    weight_decay: 0.0001
+
+  scheduler:
+    type: "multistep"
+    milestones: [170, 200]
+    gamma: 0.1
+
+  loss:
+    type: "mse"                      # Standard MSE on heatmaps for baseline
+    use_target_weight: true
+
+  # Mixed precision (speeds up training ~2x on RTX GPUs)
+  amp: true
+
+  # Gradient clipping
+  clip_grad_norm: 1.0
+
+# ─── Evaluation ───────────────────────────────────────────────
+evaluation:
+  interval: 10                       # evaluate every N epochs
+  flip_test: true                    # test-time flip augmentation (improves AP ~1%)
+  post_processing: "dark"            # "default" or "dark" (distribution-aware)
+
+# ─── Logging ──────────────────────────────────────────────────
+logging:
+  use_tensorboard: true
+  print_freq: 100                    # print every N batches
+  save_checkpoint_freq: 10          # save checkpoint every N epochs
+
+# ─── Hardware ─────────────────────────────────────────────────
+hardware:
+  gpus: [0]                          # GPU IDs to use, e.g. [0] or [0,1]
+  distributed: false                 # set true for multi-GPU DDP
+
+---
+# CrowdPose variant — override dataset section
+# To use: python train_baseline.py --config configs/baseline_hrnet.yaml \
+#                                   --override dataset.name=crowdpose \
+#                                             dataset.root=./data/crowdpose \
+#                                             model.num_keypoints=14

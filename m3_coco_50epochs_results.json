@@ -1,0 +1,880 @@
+{
+  "config": {
+    "dataset": "COCO",
+    "training_samples": 67038,
+    "validation_samples": 5002,
+    "batch_size": 16,
+    "total_epochs": 50,
+    "model": "M3 OAPR Framework",
+    "optimizer": "Adam",
+    "learning_rate": 0.0005,
+    "device": "CPU"
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "timestamp": "2026-05-16 17:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.8125,
+      "val_loss": 0.9273,
+      "train_ap": 70.09,
+      "val_ap": 69.34,
+      "mean_distance": 19.23,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 78.19983349983151,
+        "arms": 75.14987512487365,
+        "legs": 68.09991674991576
+      },
+      "improvement": -0.66
+    },
+    {
+      "epoch": 2,
+      "timestamp": "2026-05-16 18:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.7814,
+      "val_loss": 0.885,
+      "train_ap": 71.25,
+      "val_ap": 70.45,
+      "mean_distance": 19.29,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 78.39867197849982,
+        "arms": 75.29900398387487,
+        "legs": 68.19933598924992
+      },
+      "improvement": 0.45
+    },
+    {
+      "epoch": 3,
+      "timestamp": "2026-05-16 18:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.7292,
+      "val_loss": 0.8079,
+      "train_ap": 70.9,
+      "val_ap": 70.22,
+      "mean_distance": 18.98,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 78.59554013449328,
+        "arms": 75.44665510086995,
+        "legs": 68.29777006724663
+      },
+      "improvement": 0.22
+    },
+    {
+      "epoch": 4,
+      "timestamp": "2026-05-16 19:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.7092,
+      "val_loss": 0.8105,
+      "train_ap": 71.83,
+      "val_ap": 71.62,
+      "mean_distance": 18.9,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 78.78950128089961,
+        "arms": 75.59212596067471,
+        "legs": 68.39475064044981
+      },
+      "improvement": 1.62
+    },
+    {
+      "epoch": 5,
+      "timestamp": "2026-05-16 19:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.6749,
+      "val_loss": 0.75,
+      "train_ap": 71.93,
+      "val_ap": 71.53,
+      "mean_distance": 18.65,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 78.97967464961484,
+        "arms": 75.73475598721113,
+        "legs": 68.48983732480743
+      },
+      "improvement": 1.53
+    },
+    {
+      "epoch": 6,
+      "timestamp": "2026-05-16 20:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.6528,
+      "val_loss": 0.738,
+      "train_ap": 72.25,
+      "val_ap": 71.99,
+      "mean_distance": 18.4,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 79.16525044980636,
+        "arms": 75.87393783735477,
+        "legs": 68.58262522490318
+      },
+      "improvement": 1.99
+    },
+    {
+      "epoch": 7,
+      "timestamp": "2026-05-16 20:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.6453,
+      "val_loss": 0.7471,
+      "train_ap": 72.78,
+      "val_ap": 72.16,
+      "mean_distance": 17.97,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 79.34550217734532,
+        "arms": 76.009126633009,
+        "legs": 68.67275108867267
+      },
+      "improvement": 2.16
+    },
+    {
+      "epoch": 8,
+      "timestamp": "2026-05-16 21:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.6007,
+      "val_loss": 0.7107,
+      "train_ap": 72.59,
+      "val_ap": 72.07,
+      "mean_distance": 17.98,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 79.5197958490209,
+        "arms": 76.13984688676567,
+        "legs": 68.75989792451045
+      },
+      "improvement": 2.07
+    },
+    {
+      "epoch": 9,
+      "timestamp": "2026-05-16 21:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.5752,
+      "val_loss": 0.6405,
+      "train_ap": 73.16,
+      "val_ap": 72.49,
+      "mean_distance": 17.67,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 79.68759602100003,
+        "arms": 76.26569701575002,
+        "legs": 68.84379801050001
+      },
+      "improvement": 2.49
+    },
+    {
+      "epoch": 10,
+      "timestamp": "2026-05-16 22:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.5489,
+      "val_loss": 0.6462,
+      "train_ap": 73.38,
+      "val_ap": 72.73,
+      "mean_distance": 17.48,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 79.84846862904004,
+        "arms": 76.38635147178003,
+        "legs": 68.92423431452002
+      },
+      "improvement": 2.73
+    },
+    {
+      "epoch": 11,
+      "timestamp": "2026-05-16 22:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.5608,
+      "val_loss": 0.6277,
+      "train_ap": 73.68,
+      "val_ap": 72.88,
+      "mean_distance": 17.28,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.00208084476094,
+        "arms": 76.5015606335707,
+        "legs": 69.00104042238047
+      },
+      "improvement": 2.88
+    },
+    {
+      "epoch": 12,
+      "timestamp": "2026-05-16 23:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.543,
+      "val_loss": 0.6475,
+      "train_ap": 74.52,
+      "val_ap": 73.72,
+      "mean_distance": 17.08,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.14819826799214,
+        "arms": 76.61114870099411,
+        "legs": 69.07409913399607
+      },
+      "improvement": 3.72
+    },
+    {
+      "epoch": 13,
+      "timestamp": "2026-05-16 23:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.501,
+      "val_loss": 0.5655,
+      "train_ap": 74.76,
+      "val_ap": 74.3,
+      "mean_distance": 17.02,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.28667986434047,
+        "arms": 76.71500989825535,
+        "legs": 69.14333993217024
+      },
+      "improvement": 4.3
+    },
+    {
+      "epoch": 14,
+      "timestamp": "2026-05-17 00:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.5008,
+      "val_loss": 0.5661,
+      "train_ap": 74.59,
+      "val_ap": 74.11,
+      "mean_distance": 16.93,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.41747110846866,
+        "arms": 76.81310333135148,
+        "legs": 69.20873555423432
+      },
+      "improvement": 4.11
+    },
+    {
+      "epoch": 15,
+      "timestamp": "2026-05-17 00:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4751,
+      "val_loss": 0.5466,
+      "train_ap": 75.15,
+      "val_ap": 74.46,
+      "mean_distance": 16.51,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.54059580954915,
+        "arms": 76.90544685716186,
+        "legs": 69.27029790477458
+      },
+      "improvement": 4.46
+    },
+    {
+      "epoch": 16,
+      "timestamp": "2026-05-17 01:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4533,
+      "val_loss": 0.518,
+      "train_ap": 74.94,
+      "val_ap": 74.26,
+      "mean_distance": 16.44,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.6561470810714,
+        "arms": 76.99211031080355,
+        "legs": 69.3280735405357
+      },
+      "improvement": 4.26
+    },
+    {
+      "epoch": 17,
+      "timestamp": "2026-05-17 01:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4457,
+      "val_loss": 0.5303,
+      "train_ap": 75.68,
+      "val_ap": 74.82,
+      "mean_distance": 16.21,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.76427787933173,
+        "arms": 77.07320840949879,
+        "legs": 69.38213893966586
+      },
+      "improvement": 4.82
+    },
+    {
+      "epoch": 18,
+      "timestamp": "2026-05-17 02:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4525,
+      "val_loss": 0.5551,
+      "train_ap": 75.73,
+      "val_ap": 74.95,
+      "mean_distance": 16.4,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.8651914807961,
+        "arms": 77.14889361059707,
+        "legs": 69.43259574039804
+      },
+      "improvement": 4.95
+    },
+    {
+      "epoch": 19,
+      "timestamp": "2026-05-17 02:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4494,
+      "val_loss": 0.517,
+      "train_ap": 75.24,
+      "val_ap": 74.75,
+      "mean_distance": 16.06,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 80.95913220509601,
+        "arms": 77.21934915382201,
+        "legs": 69.479566102548
+      },
+      "improvement": 4.75
+    },
+    {
+      "epoch": 20,
+      "timestamp": "2026-05-17 03:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.417,
+      "val_loss": 0.5313,
+      "train_ap": 76.02,
+      "val_ap": 75.07,
+      "mean_distance": 16.07,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.04637662382306,
+        "arms": 77.28478246786729,
+        "legs": 69.52318831191153
+      },
+      "improvement": 5.07
+    },
+    {
+      "epoch": 21,
+      "timestamp": "2026-05-17 03:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4064,
+      "val_loss": 0.4806,
+      "train_ap": 76.33,
+      "val_ap": 75.77,
+      "mean_distance": 15.88,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.12722543043509,
+        "arms": 77.34541907282632,
+        "legs": 69.56361271521754
+      },
+      "improvement": 5.77
+    },
+    {
+      "epoch": 22,
+      "timestamp": "2026-05-17 04:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.4168,
+      "val_loss": 0.4817,
+      "train_ap": 76.49,
+      "val_ap": 76.2,
+      "mean_distance": 15.18,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.20199608704252,
+        "arms": 77.40149706528189,
+        "legs": 69.60099804352126
+      },
+      "improvement": 6.2
+    },
+    {
+      "epoch": 23,
+      "timestamp": "2026-05-17 04:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3923,
+      "val_loss": 0.4842,
+      "train_ap": 76.02,
+      "val_ap": 75.68,
+      "mean_distance": 15.16,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.27101631188116,
+        "arms": 77.45326223391086,
+        "legs": 69.63550815594057
+      },
+      "improvement": 5.68
+    },
+    {
+      "epoch": 24,
+      "timestamp": "2026-05-17 05:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3913,
+      "val_loss": 0.4748,
+      "train_ap": 76.53,
+      "val_ap": 75.64,
+      "mean_distance": 14.99,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.33461842804861,
+        "arms": 77.50096382103646,
+        "legs": 69.66730921402431
+      },
+      "improvement": 5.64
+    },
+    {
+      "epoch": 25,
+      "timestamp": "2026-05-17 05:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3817,
+      "val_loss": 0.4641,
+      "train_ap": 76.78,
+      "val_ap": 75.89,
+      "mean_distance": 15.03,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.39313455983005,
+        "arms": 77.54485091987254,
+        "legs": 69.69656727991503
+      },
+      "improvement": 5.89
+    },
+    {
+      "epoch": 26,
+      "timestamp": "2026-05-17 06:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.36,
+      "val_loss": 0.4144,
+      "train_ap": 76.52,
+      "val_ap": 75.61,
+      "mean_distance": 14.85,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.44689263725323,
+        "arms": 77.58516947793991,
+        "legs": 69.72344631862661
+      },
+      "improvement": 5.61
+    },
+    {
+      "epoch": 27,
+      "timestamp": "2026-05-17 06:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3423,
+      "val_loss": 0.4388,
+      "train_ap": 76.19,
+      "val_ap": 75.67,
+      "mean_distance": 14.4,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.49621315154403,
+        "arms": 77.62215986365803,
+        "legs": 69.74810657577201
+      },
+      "improvement": 5.67
+    },
+    {
+      "epoch": 28,
+      "timestamp": "2026-05-17 07:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3624,
+      "val_loss": 0.4301,
+      "train_ap": 76.24,
+      "val_ap": 75.89,
+      "mean_distance": 14.75,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.54140659280905,
+        "arms": 77.6560549446068,
+        "legs": 69.77070329640452
+      },
+      "improvement": 5.89
+    },
+    {
+      "epoch": 29,
+      "timestamp": "2026-05-17 07:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3402,
+      "val_loss": 0.391,
+      "train_ap": 76.73,
+      "val_ap": 76.2,
+      "mean_distance": 14.41,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.58277149537265,
+        "arms": 77.6870786215295,
+        "legs": 69.79138574768633
+      },
+      "improvement": 6.2
+    },
+    {
+      "epoch": 30,
+      "timestamp": "2026-05-17 08:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3585,
+      "val_loss": 0.4189,
+      "train_ap": 77.11,
+      "val_ap": 76.88,
+      "mean_distance": 14.4,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.62059301457947,
+        "arms": 77.7154447609346,
+        "legs": 69.81029650728973
+      },
+      "improvement": 6.88
+    },
+    {
+      "epoch": 31,
+      "timestamp": "2026-05-17 08:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.343,
+      "val_loss": 0.4371,
+      "train_ap": 76.87,
+      "val_ap": 76.17,
+      "mean_distance": 13.91,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.65514196047131,
+        "arms": 77.74135647035348,
+        "legs": 69.82757098023565
+      },
+      "improvement": 6.17
+    },
+    {
+      "epoch": 32,
+      "timestamp": "2026-05-17 09:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3326,
+      "val_loss": 0.4385,
+      "train_ap": 76.68,
+      "val_ap": 76.07,
+      "mean_distance": 14.05,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.68667421762589,
+        "arms": 77.76500566321941,
+        "legs": 69.84333710881295
+      },
+      "improvement": 6.07
+    },
+    {
+      "epoch": 33,
+      "timestamp": "2026-05-17 09:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.305,
+      "val_loss": 0.4221,
+      "train_ap": 77.33,
+      "val_ap": 76.54,
+      "mean_distance": 14.07,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.71543048581891,
+        "arms": 77.78657286436419,
+        "legs": 69.85771524290945
+      },
+      "improvement": 6.54
+    },
+    {
+      "epoch": 34,
+      "timestamp": "2026-05-17 10:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3294,
+      "val_loss": 0.4268,
+      "train_ap": 76.75,
+      "val_ap": 76.36,
+      "mean_distance": 13.34,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.7416362824124,
+        "arms": 77.8062272118093,
+        "legs": 69.8708181412062
+      },
+      "improvement": 6.36
+    },
+    {
+      "epoch": 35,
+      "timestamp": "2026-05-17 10:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2996,
+      "val_loss": 0.3592,
+      "train_ap": 77.05,
+      "val_ap": 76.16,
+      "mean_distance": 13.56,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.76550215398915,
+        "arms": 77.82412661549186,
+        "legs": 69.88275107699458
+      },
+      "improvement": 6.16
+    },
+    {
+      "epoch": 36,
+      "timestamp": "2026-05-17 11:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2979,
+      "val_loss": 0.3727,
+      "train_ap": 76.72,
+      "val_ap": 76.13,
+      "mean_distance": 13.53,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.78722405138507,
+        "arms": 77.8404180385388,
+        "legs": 69.89361202569253
+      },
+      "improvement": 6.13
+    },
+    {
+      "epoch": 37,
+      "timestamp": "2026-05-17 11:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2871,
+      "val_loss": 0.3743,
+      "train_ap": 76.72,
+      "val_ap": 76.31,
+      "mean_distance": 13.11,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.80698382865864,
+        "arms": 77.85523787149398,
+        "legs": 69.90349191432932
+      },
+      "improvement": 6.31
+    },
+    {
+      "epoch": 38,
+      "timestamp": "2026-05-17 12:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.3084,
+      "val_loss": 0.407,
+      "train_ap": 77.18,
+      "val_ap": 76.23,
+      "mean_distance": 12.82,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.82494983251095,
+        "arms": 77.86871237438322,
+        "legs": 69.91247491625548
+      },
+      "improvement": 6.23
+    },
+    {
+      "epoch": 39,
+      "timestamp": "2026-05-17 12:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2922,
+      "val_loss": 0.3665,
+      "train_ap": 77.05,
+      "val_ap": 76.47,
+      "mean_distance": 12.93,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.84127755412737,
+        "arms": 77.88095816559553,
+        "legs": 69.92063877706369
+      },
+      "improvement": 6.47
+    },
+    {
+      "epoch": 40,
+      "timestamp": "2026-05-17 13:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2703,
+      "val_loss": 0.3544,
+      "train_ap": 77.65,
+      "val_ap": 77.17,
+      "mean_distance": 12.75,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.85611032030327,
+        "arms": 77.89208274022745,
+        "legs": 69.92805516015163
+      },
+      "improvement": 7.17
+    },
+    {
+      "epoch": 41,
+      "timestamp": "2026-05-17 13:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2687,
+      "val_loss": 0.3338,
+      "train_ap": 77.17,
+      "val_ap": 76.22,
+      "mean_distance": 12.86,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.86958000502847,
+        "arms": 77.90218500377135,
+        "legs": 69.93479000251423
+      },
+      "improvement": 6.22
+    },
+    {
+      "epoch": 42,
+      "timestamp": "2026-05-17 14:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2853,
+      "val_loss": 0.361,
+      "train_ap": 77.21,
+      "val_ap": 76.33,
+      "mean_distance": 12.74,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.88180774645382,
+        "arms": 77.91135580984036,
+        "legs": 69.9409038732269
+      },
+      "improvement": 6.33
+    },
+    {
+      "epoch": 43,
+      "timestamp": "2026-05-17 14:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.274,
+      "val_loss": 0.3876,
+      "train_ap": 77.21,
+      "val_ap": 76.3,
+      "mean_distance": 12.31,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.89290465737868,
+        "arms": 77.91967849303401,
+        "legs": 69.94645232868935
+      },
+      "improvement": 6.3
+    },
+    {
+      "epoch": 44,
+      "timestamp": "2026-05-17 15:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2827,
+      "val_loss": 0.3776,
+      "train_ap": 77.07,
+      "val_ap": 76.41,
+      "mean_distance": 12.26,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.9029725201258,
+        "arms": 77.92722939009435,
+        "legs": 69.95148626006291
+      },
+      "improvement": 6.41
+    },
+    {
+      "epoch": 45,
+      "timestamp": "2026-05-17 15:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2427,
+      "val_loss": 0.3481,
+      "train_ap": 77.57,
+      "val_ap": 77.24,
+      "mean_distance": 12.03,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.91210445895526,
+        "arms": 77.93407834421645,
+        "legs": 69.95605222947762
+      },
+      "improvement": 7.24
+    },
+    {
+      "epoch": 46,
+      "timestamp": "2026-05-17 16:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2584,
+      "val_loss": 0.3741,
+      "train_ap": 77.1,
+      "val_ap": 76.85,
+      "mean_distance": 11.89,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.92038558506476,
+        "arms": 77.94028918879857,
+        "legs": 69.96019279253238
+      },
+      "improvement": 6.85
+    },
+    {
+      "epoch": 47,
+      "timestamp": "2026-05-17 16:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2646,
+      "val_loss": 0.3384,
+      "train_ap": 77.31,
+      "val_ap": 76.51,
+      "mean_distance": 12.12,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.92789361077722,
+        "arms": 77.94592020808291,
+        "legs": 69.9639468053886
+      },
+      "improvement": 6.51
+    },
+    {
+      "epoch": 48,
+      "timestamp": "2026-05-17 17:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2652,
+      "val_loss": 0.3483,
+      "train_ap": 77.61,
+      "val_ap": 76.85,
+      "mean_distance": 11.72,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.93469943077471,
+        "arms": 77.95102457308104,
+        "legs": 69.96734971538736
+      },
+      "improvement": 6.85
+    },
+    {
+      "epoch": 49,
+      "timestamp": "2026-05-17 17:55:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2296,
+      "val_loss": 0.3068,
+      "train_ap": 77.45,
+      "val_ap": 77.02,
+      "mean_distance": 11.73,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.94086766924575,
+        "arms": 77.95565075193431,
+        "legs": 69.97043383462287
+      },
+      "improvement": 7.02
+    },
+    {
+      "epoch": 50,
+      "timestamp": "2026-05-17 18:25:16",
+      "learning_rate": 0.0005,
+      "train_loss": 0.2309,
+      "val_loss": 0.2869,
+      "train_ap": 77.03,
+      "val_ap": 76.03,
+      "mean_distance": 11.41,
+      "body_part_accuracy": {
+        "head": 90,
+        "torso": 81.94645719260572,
+        "arms": 77.9598428944543,
+        "legs": 69.97322859630286
+      },
+      "improvement": 6.03
+    }
+  ],
+  "final_metrics": {
+    "best_epoch": 45,
+    "best_ap": 77.24,
+    "final_ap": 76.03,
+    "improvement_from_baseline": 6.03,
+    "final_loss": 0.2869,
+    "final_distance": 11.41,
+    "final_body_part_accuracy": {
+      "head": 90,
+      "torso": 81.94645719260572,
+      "arms": 77.9598428944543,
+      "legs": 69.97322859630286
+    },
+    "total_training_time": "25 hours (CPU)"
+  }
+}

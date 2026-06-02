@@ -1,0 +1,20 @@
+# Datasets & large files (re-downloaded in Colab/training)
+data/
+*.zip
+.torch_cache/
+
+# Python environments
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Generated outputs & logs
+outputs/
+logs/
+*.log
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/

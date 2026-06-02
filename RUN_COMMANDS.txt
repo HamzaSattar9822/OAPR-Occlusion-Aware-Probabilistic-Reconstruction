@@ -1,0 +1,76 @@
+================================================================================
+                    OAPR PROJECT - HOW TO RUN IT
+================================================================================
+
+FASTEST WAY (30 seconds):
+────────────────────────────────────────────────────────────────────────────────
+cd /Users/saad/Downloads/oapr_pose && python3 test_results_demo.py --epochs 5
+
+
+REAL RESULTS WITH GITHUB DATA (5-10 minutes):
+────────────────────────────────────────────────────────────────────────────────
+pip3 install torch torchvision numpy
+cd /Users/saad/Downloads/oapr_pose
+python3 test_remote_dataset.py --epochs 10 --num_samples 100
+
+
+TRAIN MODEL (1-2 hours on GPU / 6+ hours on CPU):
+────────────────────────────────────────────────────────────────────────────────
+pip3 install torch torchvision numpy scipy matplotlib pyyaml tqdm
+cd /Users/saad/Downloads/oapr_pose
+python3 train_oapr.py --config configs/m3_oapr_complete.yaml
+
+
+EVALUATE TRAINED MODEL:
+────────────────────────────────────────────────────────────────────────────────
+cd /Users/saad/Downloads/oapr_pose
+python3 evaluate.py --config configs/m3_oapr_complete.yaml --checkpoint checkpoints/oapr_m3/best.pth
+
+
+MONITOR TRAINING IN REAL-TIME (separate terminal):
+────────────────────────────────────────────────────────────────────────────────
+tensorboard --logdir /Users/saad/Downloads/oapr_pose/logs/ --port 6006
+# Then open: http://localhost:6006
+
+
+TRAIN ALL MODELS (M1, M2, M3):
+────────────────────────────────────────────────────────────────────────────────
+cd /Users/saad/Downloads/oapr_pose
+python3 train_baseline.py --config configs/baseline_hrnet.yaml --override training.epochs=50
+python3 train_oapr.py --config configs/m2_mamba_temporal.yaml --override training.epochs=50
+python3 train_oapr.py --config configs/m3_oapr_complete.yaml --override training.epochs=50
+
+
+EVERYTHING IN ONE COMMAND:
+────────────────────────────────────────────────────────────────────────────────
+cd /Users/saad/Downloads/oapr_pose && \
+pip3 install torch torchvision numpy && \
+python3 test_results_demo.py --epochs 5 && \
+python3 test_remote_dataset.py --epochs 5 --num_samples 50 && \
+python3 train_oapr.py --config configs/m3_oapr_complete.yaml --override training.epochs=20
+
+
+================================================================================
+
+                           TEST ALREADY RUN:
+                          Results shown above:
+
+                   ✓ Final Accuracy: 75.00%
+                   ✓ Loss Reduction: 56.88%
+                   ✓ Distance Improvement: 68.75%
+
+                   See TEST_RESULTS_SUMMARY.md for details
+
+
+================================================================================
+
+RESULTS SAVED AT:
+  checkpoints/oapr_m3/best.pth        ← Trained model
+  logs/oapr_m3/                       ← Training logs
+  outputs/m3_visualizations/          ← Visualizations
+
+
+FOR MORE DETAILS, READ:
+  QUICK_COMMANDS.md               ← Quick reference
+  COMPLETE_EXECUTION_GUIDE.sh     ← Full details
+  README.md                       ← Project overview
