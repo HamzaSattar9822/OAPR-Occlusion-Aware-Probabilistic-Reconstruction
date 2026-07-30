@@ -12,6 +12,8 @@ model:
   name: "oapr_complete"
   num_keypoints: 17
   sigma: 2.0                  # Gaussian heatmap standard deviation
+  version: "w32"              # HRNet image-encoder width
+  pretrained: true
   
   # Spatiotemporal backbone (M2)
   seq_len: 7

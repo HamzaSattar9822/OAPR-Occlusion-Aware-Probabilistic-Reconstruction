@@ -13,10 +13,16 @@ Usage:
                        --checkpoint checkpoints/hrnet_baseline/best.pth \
                        --override dataset.name=crowdpose
 
-    # Save visualizations:
+    # Save visualizations (crop + full-scene COCO-17 skeletons):
     python evaluate.py --config configs/baseline_hrnet.yaml \
                        --checkpoint checkpoints/hrnet_baseline/best.pth \
-                       --visualize --vis_dir outputs/visualizations
+                       --visualize --vis_dir outputs/visualizations --max_vis 100
+
+    # Colab (checkpoint on Drive):
+    python evaluate.py --config configs/baseline_hrnet.yaml \
+                       --checkpoint /content/drive/MyDrive/oapr_checkpoints/best.pth \
+                       --visualize --vis_dir outputs/article_100images --max_vis 100 \
+                       --override training.num_workers=2
 """
 
 import os
@@ -34,8 +40,13 @@ import cv2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.data import build_dataset
-from src.models import build_model, JointsMSELoss, decode_heatmaps
+from src.data.transforms import get_affine_transform, affine_transform
+from src.models import (
+    build_pose_model, JointsMSELoss,
+    decode_heatmaps, decode_heatmaps_to_crop,
+)
 from src.utils import setup_logger, load_checkpoint
+from src.utils.pose_viz import draw_pose_with_neck
 from src.evaluation import print_metrics_table
 
 
@@ -69,6 +80,43 @@ JOINT_COLORS = [
 ]
 
 
+def _viz_conf_threshold(confidences):
+    """Adaptive threshold so weak models still show visible joints."""
+    peak = float(np.max(confidences)) if len(confidences) else 0.0
+    return max(0.05, 0.15 * peak)
+
+
+def _is_oapr_output(output):
+    return isinstance(output, dict) and 'keypoints' in output
+
+
+def transform_preds_to_image(coords_crop, centers, scales, image_size):
+    """
+    Map crop-space keypoints (B, K, 2) to original image coordinates.
+
+    Args:
+        coords_crop: (B, K, 2) numpy
+        centers, scales: (B, 2)
+        image_size: [W, H] model input crop size
+    """
+    B, K, _ = coords_crop.shape
+    out = np.zeros_like(coords_crop, dtype=np.float32)
+    for b in range(B):
+        trans = get_affine_transform(centers[b], scales[b], 0, image_size, inv=True)
+        for j in range(K):
+            out[b, j] = affine_transform(coords_crop[b, j], trans)
+    return out
+
+
+def flip_crop_keypoints(keypoints, img_width, flip_pairs):
+    """Horizontal flip of crop-space keypoints + left/right swap."""
+    flipped = keypoints.copy()
+    flipped[:, :, 0] = img_width - 1.0 - flipped[:, :, 0]
+    for left, right in flip_pairs:
+        flipped[:, [left, right], :] = flipped[:, [right, left], :].copy()
+    return flipped
+
+
 def draw_pose(image, keypoints, skeleton, threshold=0.3):
     """
     Draw predicted skeleton on image.
@@ -93,7 +141,7 @@ def draw_pose(image, keypoints, skeleton, threshold=0.3):
         xa, ya = int(keypoints[a, 0]), int(keypoints[a, 1])
         xb, yb = int(keypoints[b, 0]), int(keypoints[b, 1])
         color = JOINT_COLORS[i % len(JOINT_COLORS)]
-        cv2.line(vis, (xa, ya), (xb, yb), color, 2, cv2.LINE_AA)
+        cv2.line(vis, (xa, ya), (xb, yb), color, 3, cv2.LINE_AA)
 
     # Draw joints
     for k, kp in enumerate(keypoints):
@@ -101,14 +149,14 @@ def draw_pose(image, keypoints, skeleton, threshold=0.3):
             continue
         x, y = int(kp[0]), int(kp[1])
         color = JOINT_COLORS[k % len(JOINT_COLORS)]
-        cv2.circle(vis, (x, y), 4, color, -1, cv2.LINE_AA)
-        cv2.circle(vis, (x, y), 4, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.circle(vis, (x, y), 5, color, -1, cv2.LINE_AA)
+        cv2.circle(vis, (x, y), 5, (255, 255, 255), 1, cv2.LINE_AA)
 
     return vis
 
 
 def evaluate(model, loader, criterion, device, cfg, logger, dataset,
-             visualize=False, vis_dir=None, max_vis=50):
+             visualize=False, vis_dir=None, max_vis=50, vis_full_scene=True):
     """
     Full evaluation loop.
 
@@ -142,9 +190,13 @@ def evaluate(model, loader, criterion, device, cfg, logger, dataset,
     total_loss = 0.0
     total_n    = 0
     vis_count  = 0
+    scene_vis_count = 0
+    seen_scene_ids = set()
 
     if visualize and vis_dir:
         os.makedirs(vis_dir, exist_ok=True)
+        if vis_full_scene:
+            os.makedirs(os.path.join(vis_dir, 'scenes'), exist_ok=True)
         logger.info(f"Saving visualizations to: {vis_dir}")
 
     start = time.time()
@@ -159,28 +211,62 @@ def evaluate(model, loader, criterion, device, cfg, logger, dataset,
             image_ids     = batch['image_id']
 
             output = model(images)
+            flip_pairs = cfg['dataset']['augmentation'].get('flip_pairs', [])
 
-            # TTA flip
-            if use_flip:
-                flip_pairs = cfg['dataset']['augmentation'].get('flip_pairs', [])
-                flipped    = torch.flip(images, dims=[3])
-                flip_out   = model(flipped)
-                flip_out   = torch.flip(flip_out, dims=[3])
-                for left, right in flip_pairs:
-                    flip_out[:, left, :, :], flip_out[:, right, :, :] = \
-                        flip_out[:, right, :, :].clone(), flip_out[:, left, :, :].clone()
-                output = (output + flip_out) * 0.5
+            if _is_oapr_output(output):
+                # Full OAPR image→keypoint pipeline (crop-space refined joints)
+                coords_crop = output['keypoints'].detach().cpu().numpy()
+                conf = output['confidence'].detach().cpu().numpy()
+                if conf.ndim == 3:
+                    conf = conf[..., 0]
+                maxvals = conf[:, :, np.newaxis]
 
-            loss = criterion(output, targets, target_weight)
-            total_loss += loss.item() * images.size(0)
-            total_n    += images.size(0)
+                if use_flip:
+                    flipped_imgs = torch.flip(images, dims=[3])
+                    flip_out = model(flipped_imgs)
+                    flip_kps = flip_out['keypoints'].detach().cpu().numpy()
+                    flip_conf = flip_out['confidence'].detach().cpu().numpy()
+                    if flip_conf.ndim == 3:
+                        flip_conf = flip_conf[..., 0]
+                    flip_kps = flip_crop_keypoints(
+                        flip_kps, image_size[0], flip_pairs
+                    )
+                    coords_crop = 0.5 * (coords_crop + flip_kps)
+                    maxvals = 0.5 * (maxvals + flip_conf[:, :, np.newaxis])
 
-            heatmaps_np = output.cpu().numpy()
-            coords, maxvals = decode_heatmaps(
-                heatmaps_np, centers, scales,
-                heatmap_size, image_size,
-                use_dark=use_dark
-            )
+                if 'heatmaps' in output and criterion is not None:
+                    loss = criterion(output['heatmaps'], targets, target_weight)
+                    total_loss += loss.item() * images.size(0)
+                total_n += images.size(0)
+
+                coords = transform_preds_to_image(
+                    coords_crop, centers, scales, image_size
+                )
+            else:
+                # HRNet heatmap baseline path
+                if use_flip:
+                    flipped = torch.flip(images, dims=[3])
+                    flip_out = model(flipped)
+                    flip_out = torch.flip(flip_out, dims=[3])
+                    for left, right in flip_pairs:
+                        flip_out[:, left, :, :], flip_out[:, right, :, :] = \
+                            flip_out[:, right, :, :].clone(), flip_out[:, left, :, :].clone()
+                    output = (output + flip_out) * 0.5
+
+                if criterion is not None:
+                    loss = criterion(output, targets, target_weight)
+                    total_loss += loss.item() * images.size(0)
+                total_n += images.size(0)
+
+                heatmaps_np = output.cpu().numpy()
+                coords, maxvals = decode_heatmaps(
+                    heatmaps_np, centers, scales,
+                    heatmap_size, image_size,
+                    use_dark=use_dark
+                )
+                coords_crop, _ = decode_heatmaps_to_crop(
+                    heatmaps_np, heatmap_size, image_size, use_dark=use_dark
+                )
 
             B = images.size(0)
             for b in range(B):
@@ -194,13 +280,31 @@ def evaluate(model, loader, criterion, device, cfg, logger, dataset,
                     'score':     float(maxvals[b].mean()),
                 })
 
-                # Visualization
+                # Visualization (crop coords on person crop; full coords on scene)
                 if visualize and vis_count < max_vis:
-                    _save_visualization(
-                        images[b].cpu(), kps, skeleton,
-                        vis_dir, vis_count, int(image_ids[b])
+                    kps_crop = np.zeros((num_kps, 3), dtype=np.float32)
+                    kps_crop[:, :2] = coords_crop[b]
+                    kps_crop[:, 2] = maxvals[b, :, 0]
+                    thresh = _viz_conf_threshold(kps_crop[:, 2])
+
+                    _save_crop_visualization(
+                        images[b].cpu(), kps_crop, skeleton,
+                        vis_dir, vis_count, int(image_ids[b]), thresh,
+                        use_neck=(dataset_name == 'coco'),
                     )
                     vis_count += 1
+
+                if (visualize and vis_full_scene and scene_vis_count < max_vis
+                        and int(image_ids[b]) not in seen_scene_ids):
+                    thresh = _viz_conf_threshold(kps[:, 2])
+                    saved = _save_scene_visualization(
+                        dataset, cfg, int(image_ids[b]), kps, skeleton,
+                        vis_dir, scene_vis_count, thresh,
+                        use_neck=(dataset_name == 'coco'),
+                    )
+                    if saved:
+                        seen_scene_ids.add(int(image_ids[b]))
+                        scene_vis_count += 1
 
             if (batch_idx + 1) % 50 == 0:
                 elapsed = time.time() - start
@@ -218,10 +322,9 @@ def evaluate(model, loader, criterion, device, cfg, logger, dataset,
     return metrics
 
 
-def _save_visualization(image_tensor, keypoints, skeleton, vis_dir, idx, image_id):
-    """Denormalize image tensor and draw predicted skeleton, then save."""
-    import torchvision.transforms.functional as TF
-
+def _save_crop_visualization(image_tensor, keypoints, skeleton, vis_dir,
+                             idx, image_id, threshold, use_neck=False):
+    """Draw COCO-17 skeleton on the model input crop (crop-space keypoints)."""
     mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
     std  = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
@@ -230,10 +333,51 @@ def _save_visualization(image_tensor, keypoints, skeleton, vis_dir, idx, image_i
     img = (img * 255).clip(0, 255).astype(np.uint8)
     img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    vis = draw_pose(img_bgr, keypoints, skeleton, threshold=0.3)
+    if use_neck:
+        vis = draw_pose_with_neck(
+            img_bgr, keypoints, keypoints[:, 2], threshold=threshold,
+            line_width=3, joint_radius=5,
+        )
+    else:
+        vis = draw_pose(img_bgr, keypoints, skeleton, threshold=threshold)
 
     save_path = os.path.join(vis_dir, f'pred_{idx:04d}_imgid{image_id}.jpg')
     cv2.imwrite(save_path, vis)
+
+
+def _save_scene_visualization(dataset, cfg, image_id, keypoints, skeleton,
+                              vis_dir, idx, threshold, use_neck=False):
+    """Draw skeleton on the full original image (full-image keypoints)."""
+    try:
+        img_info = dataset.coco.loadImgs(image_id)[0]
+    except (IndexError, KeyError):
+        return False
+
+    file_name = img_info['file_name']
+    root = cfg['dataset']['root']
+    search_paths = [
+        os.path.join(root, 'images', 'val2017', file_name),
+        os.path.join(root, 'images', 'train2017', file_name),
+        os.path.join('coco_qualitative_subset', file_name),
+    ]
+    for path in search_paths:
+        if os.path.isfile(path):
+            image = cv2.imread(path)
+            if image is not None:
+                if use_neck:
+                    vis = draw_pose_with_neck(
+                        image, keypoints, keypoints[:, 2], threshold=threshold,
+                        line_width=3, joint_radius=5,
+                    )
+                else:
+                    vis = draw_pose(image, keypoints, skeleton, threshold=threshold)
+                out = os.path.join(
+                    vis_dir, 'scenes',
+                    f'scene_{idx:04d}_imgid{image_id}_{file_name}'
+                )
+                cv2.imwrite(out, vis)
+                return True
+    return False
 
 
 def load_config(path):
@@ -270,6 +414,11 @@ def main():
     parser.add_argument('--vis_dir',    default='outputs/visualizations')
     parser.add_argument('--max_vis',    type=int, default=100,
                         help='Max images to visualize')
+    parser.add_argument('--vis_full_scene', action='store_true', default=True,
+                        help='Also save full-scene images with skeletons (default: on)')
+    parser.add_argument('--no_vis_full_scene', action='store_false',
+                        dest='vis_full_scene',
+                        help='Only save person-crop visualizations')
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -296,8 +445,10 @@ def main():
         pin_memory=True,
     )
 
-    # Model
-    model = build_model(cfg).to(device)
+    # Model (HRNet baseline or full OAPR image→keypoint pipeline)
+    model_name = str(cfg['model'].get('name', 'hrnet'))
+    logger.info(f"Building model: {model_name}")
+    model = build_pose_model(cfg).to(device)
     load_checkpoint(args.checkpoint, model, device=device)
 
     if len(gpu_ids) > 1 and torch.cuda.is_available():
@@ -313,6 +464,7 @@ def main():
         visualize=args.visualize,
         vis_dir=args.vis_dir,
         max_vis=args.max_vis,
+        vis_full_scene=args.vis_full_scene,
     )
 
     logger.info("\nFinal Results:")

@@ -121,13 +121,27 @@ def _get_max_preds(batch_heatmaps):
 
 
 def print_metrics_table(metrics_dict, dataset_name='COCO'):
-    """Pretty-print evaluation results in a table format."""
+    """Pretty-print evaluation results in a table format.
+
+    Prefers AP / AP50 / APH (hard) when present, then remaining keys.
+    """
     border = "=" * 50
     print(border)
     print(f"  Evaluation Results — {dataset_name}")
     print(border)
+    preferred = ('AP', 'AP50', 'APH', 'AP75', 'APm', 'APl', 'AR')
+    shown = set()
+    for k in preferred:
+        if k in metrics_dict:
+            print(f"  {k:<10}: {metrics_dict[k]:.4f}")
+            shown.add(k)
     for k, v in metrics_dict.items():
-        print(f"  {k:<10}: {v:.4f}")
+        if k in shown:
+            continue
+        try:
+            print(f"  {k:<10}: {float(v):.4f}")
+        except (TypeError, ValueError):
+            print(f"  {k:<10}: {v}")
     print(border)
 
 

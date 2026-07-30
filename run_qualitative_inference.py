@@ -29,6 +29,7 @@ Usage:
 import argparse
 import csv
 import os
+import sys
 
 import cv2
 import numpy as np
@@ -39,22 +40,8 @@ from torchvision.models.detection import (
     keypointrcnn_resnet50_fpn,
 )
 
-
-# COCO 17-keypoint skeleton (0-indexed joint pairs).
-COCO_SKELETON = [
-    (0, 1), (0, 2), (1, 3), (2, 4),            # head
-    (5, 6),                                     # shoulders
-    (5, 7), (7, 9), (6, 8), (8, 10),            # arms
-    (5, 11), (6, 12), (11, 12),                 # torso/hips
-    (11, 13), (13, 15), (12, 14), (14, 16),     # legs
-]
-
-JOINT_COLORS = [
-    (255, 0, 0), (255, 85, 0), (255, 170, 0), (255, 255, 0),
-    (170, 255, 0), (85, 255, 0), (0, 255, 0), (0, 255, 85),
-    (0, 255, 170), (0, 255, 255), (0, 170, 255), (0, 85, 255),
-    (0, 0, 255), (85, 0, 255), (170, 0, 255), (255, 0, 255), (255, 0, 170),
-]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from src.utils.pose_viz import draw_pose_with_neck
 
 
 def parse_args():
@@ -74,20 +61,7 @@ def parse_args():
 
 def draw_pose(image, keypoints, kp_scores, kp_thresh):
     """Draw one person's skeleton. keypoints: (17,3) [x,y,vis], kp_scores: (17,)."""
-    vis = image
-    for i, (a, b) in enumerate(COCO_SKELETON):
-        if kp_scores[a] < kp_thresh or kp_scores[b] < kp_thresh:
-            continue
-        xa, ya = int(keypoints[a, 0]), int(keypoints[a, 1])
-        xb, yb = int(keypoints[b, 0]), int(keypoints[b, 1])
-        cv2.line(vis, (xa, ya), (xb, yb), JOINT_COLORS[i % len(JOINT_COLORS)], 2, cv2.LINE_AA)
-    for k in range(keypoints.shape[0]):
-        if kp_scores[k] < kp_thresh:
-            continue
-        x, y = int(keypoints[k, 0]), int(keypoints[k, 1])
-        cv2.circle(vis, (x, y), 4, JOINT_COLORS[k % len(JOINT_COLORS)], -1, cv2.LINE_AA)
-        cv2.circle(vis, (x, y), 4, (255, 255, 255), 1, cv2.LINE_AA)
-    return vis
+    return draw_pose_with_neck(image, keypoints, kp_scores, threshold=kp_thresh)
 
 
 def load_manifest(path):

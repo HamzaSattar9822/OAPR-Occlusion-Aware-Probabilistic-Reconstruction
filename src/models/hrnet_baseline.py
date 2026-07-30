@@ -91,6 +91,7 @@ class HRNetBaseline(nn.Module):
 
         logger.info(f"HRNetBaseline: {num_keypoints} keypoints, "
                     f"backbone_out={backbone_out_channels}ch")
+        self.out_channels = backbone_out_channels
 
     def _get_backbone_out_channels(self, version):
         channel_map = {
@@ -101,29 +102,129 @@ class HRNetBaseline(nn.Module):
         }
         return channel_map[version]
 
-    def forward(self, x):
+    def forward(self, x, return_features=False):
         """
         Args:
             x: (B, 3, H, W) normalized input images
+            return_features: if True, also return backbone feature maps
 
         Returns:
-            heatmaps: (B, num_keypoints, H/4, W/4) predicted heatmaps
+            heatmaps: (B, num_keypoints, hm_h, hm_w)
+            features (optional): (B, C, H/4, W/4) backbone feature maps
         """
-        # HRNet internal forward gives us multi-resolution features
-        # The backbone's forward returns the final fused feature map
         features = self.backbone.forward_features(x)
-
-        # features shape: (B, C, H/4, W/4) — highest resolution branch
         heatmaps = self.final_layer(features)
 
-        # Upsample to target heatmap resolution (W, H)
         hm_w, hm_h = self.heatmap_size
         if heatmaps.shape[-2] != hm_h or heatmaps.shape[-1] != hm_w:
             heatmaps = F.interpolate(
                 heatmaps, size=(hm_h, hm_w), mode='bilinear', align_corners=False
             )
 
+        if return_features:
+            return heatmaps, features
         return heatmaps
+
+
+def sample_joint_features(feature_map, coords_crop, image_size):
+    """
+    Bilinear-sample backbone features at predicted joint locations.
+
+    Args:
+        feature_map: (B, C, Hf, Wf)
+        coords_crop: (B, K, 2) keypoints in crop pixel space [W, H]
+        image_size: (W, H) model input crop size
+
+    Returns:
+        joint_features: (B, K, C)
+    """
+    B, C, Hf, Wf = feature_map.shape
+    W, H = int(image_size[0]), int(image_size[1])
+    x = coords_crop[..., 0] / max(W - 1, 1) * 2.0 - 1.0
+    y = coords_crop[..., 1] / max(H - 1, 1) * 2.0 - 1.0
+    grid = torch.stack([x, y], dim=-1).unsqueeze(2)  # (B, K, 1, 2)
+    sampled = F.grid_sample(
+        feature_map, grid, mode='bilinear', padding_mode='border', align_corners=True
+    )  # (B, C, K, 1)
+    return sampled.squeeze(-1).permute(0, 2, 1).contiguous()  # (B, K, C)
+
+
+def _gaussian_kernel2d(kernel_size, sigma, device, dtype):
+    ax = torch.arange(kernel_size, device=device, dtype=dtype) - kernel_size // 2
+    xx, yy = torch.meshgrid(ax, ax, indexing='ij')
+    kernel = torch.exp(-(xx ** 2 + yy ** 2) / (2.0 * sigma ** 2))
+    kernel = kernel / kernel.sum()
+    return kernel
+
+
+def dark_decode_torch(heatmaps, image_size, use_dark=True):
+    """
+    Decode heatmaps to crop-space keypoints with optional DARK refinement.
+
+    Args:
+        heatmaps: (B, K, H, W) torch tensor
+        image_size: (W, H) crop size
+        use_dark: apply Distribution-Aware coordinate Representation refinement
+
+    Returns:
+        coords: (B, K, 2) in crop pixel coordinates
+        maxvals: (B, K, 1) peak confidence scores
+    """
+    B, K, H, W = heatmaps.shape
+    device = heatmaps.device
+    dtype = heatmaps.dtype
+
+    flat = heatmaps.reshape(B, K, -1)
+    maxvals, idx = flat.max(dim=-1)
+    coords = torch.zeros(B, K, 2, device=device, dtype=dtype)
+    coords[..., 0] = (idx % W).to(dtype)
+    coords[..., 1] = (idx // W).to(dtype)
+
+    if use_dark:
+        # Gaussian blur in log-space, then Taylor refinement around the peak
+        kernel = _gaussian_kernel2d(11, 2.0, device, dtype).view(1, 1, 11, 11)
+        hm = heatmaps.reshape(B * K, 1, H, W)
+        hm_blur = F.conv2d(hm, kernel, padding=5).reshape(B, K, H, W)
+        hm_log = torch.log(torch.clamp(hm_blur, min=1e-10))
+
+        x = coords[..., 0].long().clamp(2, W - 3)
+        y = coords[..., 1].long().clamp(2, H - 3)
+        b_idx = torch.arange(B, device=device)[:, None].expand(B, K)
+        k_idx = torch.arange(K, device=device)[None, :].expand(B, K)
+
+        def at(yy, xx):
+            return hm_log[b_idx, k_idx, yy, xx]
+
+        dx = 0.5 * (at(y, x + 1) - at(y, x - 1))
+        dy = 0.5 * (at(y + 1, x) - at(y - 1, x))
+        dxx = 0.25 * (at(y, x + 2) - 2 * at(y, x) + at(y, x - 2))
+        dyy = 0.25 * (at(y + 2, x) - 2 * at(y, x) + at(y - 2, x))
+        dxy = 0.25 * (at(y + 1, x + 1) - at(y - 1, x + 1)
+                      - at(y + 1, x - 1) + at(y - 1, x - 1))
+
+        det = dxx * dyy - dxy ** 2
+        valid = det.abs() > 1e-6
+        inv_dxx = torch.where(valid, dyy / det, torch.zeros_like(det))
+        inv_dyy = torch.where(valid, dxx / det, torch.zeros_like(det))
+        inv_dxy = torch.where(valid, -dxy / det, torch.zeros_like(det))
+        offset_x = -(inv_dxx * dx + inv_dxy * dy).clamp(-0.5, 0.5)
+        offset_y = -(inv_dxy * dx + inv_dyy * dy).clamp(-0.5, 0.5)
+
+        # Only refine interior peaks (same guard as numpy DARK)
+        interior = (coords[..., 0] > 1) & (coords[..., 0] < W - 2) & \
+                   (coords[..., 1] > 1) & (coords[..., 1] < H - 2)
+        offset_x = torch.where(interior & valid, offset_x, torch.zeros_like(offset_x))
+        offset_y = torch.where(interior & valid, offset_y, torch.zeros_like(offset_y))
+        coords = coords.clone()
+        coords[..., 0] = coords[..., 0] + offset_x
+        coords[..., 1] = coords[..., 1] + offset_y
+
+    # Heatmap space → crop pixel space
+    img_w, img_h = float(image_size[0]), float(image_size[1])
+    coords = coords.clone()
+    coords[..., 0] = coords[..., 0] / max(W, 1) * img_w
+    coords[..., 1] = coords[..., 1] / max(H, 1) * img_h
+    return coords, maxvals.unsqueeze(-1)
 
 
 # ─── Loss ─────────────────────────────────────────────────────────────────────
@@ -240,6 +341,40 @@ def decode_heatmaps(heatmaps, center, scale, heatmap_size, image_size,
             pt_hm[0] = pt_hm[0] / heatmap_w * image_size[0]
             pt_hm[1] = pt_hm[1] / heatmap_h * image_size[1]
             coords[i, j] = affine_transform(pt_hm, trans_inv)
+
+    return coords, maxvals
+
+
+def decode_heatmaps_to_crop(heatmaps, heatmap_size, image_size, use_dark=True):
+    """
+    Decode heatmaps to coordinates in the **model input crop** space (image_size).
+
+    Use this for drawing skeletons on the normalized person crops produced by the
+    dataloader. ``decode_heatmaps`` maps to full original-image coordinates and
+    must not be used for crop visualization.
+
+    Args:
+        heatmaps: (B, K, H, W) numpy float32
+        heatmap_size: [W, H] (config field; used for API consistency)
+        image_size: [W, H] model input crop size
+        use_dark: apply DARK sub-pixel refinement
+
+    Returns:
+        coords: (B, K, 2) in crop pixel space
+        maxvals: (B, K, 1) heatmap peak scores
+    """
+    import numpy as np
+
+    coords, maxvals = get_max_preds(heatmaps)
+    heatmap_h, heatmap_w = heatmaps.shape[2], heatmaps.shape[3]
+
+    if use_dark:
+        coords = _dark_postprocess(heatmaps, coords)
+
+    # Scale heatmap (x, y) -> crop (W, H)
+    coords = coords.astype(np.float32)
+    coords[:, :, 0] = coords[:, :, 0] / heatmap_w * image_size[0]
+    coords[:, :, 1] = coords[:, :, 1] / heatmap_h * image_size[1]
 
     return coords, maxvals
 

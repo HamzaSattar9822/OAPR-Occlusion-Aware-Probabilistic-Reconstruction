@@ -42,8 +42,8 @@ class TemporalMamba(nn.Module):
         if Mamba is None:
             raise ImportError("mamba_ssm required. Install: pip install mamba-ssm causal-conv1d")
         
-        # Project each joint's trajectory to hidden size
-        self.joint_embed = nn.Linear(2 * seq_len, hidden_size)  # 2D coords over seq_len frames
+        # Per-timestep coordinate embedding → temporal Mamba over T
+        self.joint_embed = nn.Linear(2, hidden_size)
         
         # Mamba layer processes temporal dependencies
         self.mamba = Mamba(
@@ -73,14 +73,15 @@ class TemporalMamba(nn.Module):
         Returns:
             refined_coords: (B, K, 2)
             uncertainty: (B, K, 1)
+            joint_features: (B, K, hidden_size) last-step temporal features
         """
         B, T, K, _ = joint_trajectories.shape
         
-        # Flatten trajectory per joint: (B*K, 2*T)
-        traj_flat = rearrange(joint_trajectories, 'b t k c -> (b k) (t c)')
-        
-        # Embed and process through Mamba
-        hidden = self.mamba(self.joint_embed(traj_flat))  # (B*K, hidden_size)
+        # (B*K, T, 2) → embed → (B*K, T, hidden)
+        traj = rearrange(joint_trajectories, 'b t k c -> (b k) t c')
+        feat = self.joint_embed(traj)
+        hidden_seq = self.mamba(feat)  # (B*K, T, hidden_size)
+        hidden = hidden_seq[:, -1, :]  # (B*K, hidden_size)
         
         # Decode coordinates and uncertainty
         coords = self.coord_head(hidden)  # (B*K, 2)
@@ -89,8 +90,9 @@ class TemporalMamba(nn.Module):
         # Reshape back
         coords = rearrange(coords, '(b k) c -> b k c', b=B, k=K)
         conf = rearrange(conf, '(b k) u -> b k u', b=B, k=K)
+        joint_features = rearrange(hidden, '(b k) c -> b k c', b=B, k=K)
         
-        return coords, conf
+        return coords, conf, joint_features
 
 
 class SpatialTransformer(nn.Module):
@@ -205,6 +207,9 @@ class HybridMambaTransformer(nn.Module):
             for _ in range(num_layers)
         ])
         
+        # Fuse optional HRNet per-joint features with temporal hidden state
+        self.feature_fuse = nn.Linear(hidden_size * 2, hidden_size)
+        
         # Final coordinate regression head
         self.final_head = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
@@ -212,25 +217,26 @@ class HybridMambaTransformer(nn.Module):
             nn.Linear(hidden_size, 3),  # x, y, confidence
         )
     
-    def forward(self, video_clip):
+    def forward(self, video_clip, joint_init_features=None):
         """
         Args:
             video_clip: (B, T, K, 2) spatiotemporal keypoint sequences
                 B: batch, T: frames, K: joints, 2: coordinates
+            joint_init_features: optional (B, K, hidden_size) from image encoder
         
         Returns:
             refined_keypoints: (B, K, 3) x, y, confidence per joint
+            joint_features: (B, K, hidden_size) spatial-refined hidden features
         """
-        # Temporal modeling
-        temporal_features, temporal_conf = self.temporal(video_clip)  # (B, K, 2), (B, K, 1)
+        # Temporal modeling → real per-joint hidden features (not random noise)
+        _, _, temporal_hidden = self.temporal(video_clip)  # (B, K, hidden)
         
-        # Embed temporal output to hidden space
-        joint_feat = torch.cat([temporal_features, temporal_conf], dim=-1)  # (B, K, 3)
-        joint_feat = torch.cat([
-            joint_feat,
-            torch.zeros(joint_feat.shape[0], joint_feat.shape[1], 
-                       self.hidden_size - 3, device=joint_feat.device)
-        ], dim=-1)  # Pad to hidden_size
+        if joint_init_features is not None:
+            joint_feat = self.feature_fuse(
+                torch.cat([temporal_hidden, joint_init_features], dim=-1)
+            )
+        else:
+            joint_feat = temporal_hidden
         
         # Spatial refinement
         for spatial_layer in self.spatial_layers:
@@ -239,7 +245,7 @@ class HybridMambaTransformer(nn.Module):
         # Final head
         output = self.final_head(joint_feat)  # (B, K, 3)
         
-        return output
+        return output, joint_feat
 
 
 class TemporalTransformerFallback(nn.Module):
@@ -274,6 +280,7 @@ class TemporalTransformerFallback(nn.Module):
         Returns:
             refined_coords: (B, K, 2)
             uncertainty: (B, K, 1)
+            joint_features: (B, K, hidden_size)
         """
         B, T, K, _ = joint_trajectories.shape
         
@@ -292,8 +299,9 @@ class TemporalTransformerFallback(nn.Module):
         
         coords = rearrange(coords, '(b k) c -> b k c', b=B, k=K)
         conf = rearrange(conf, '(b k) u -> b k u', b=B, k=K)
+        joint_features = rearrange(last_feat, '(b k) c -> b k c', b=B, k=K)
         
-        return coords, conf
+        return coords, conf, joint_features
 
 
 def build_spatiotemporal_model(cfg):

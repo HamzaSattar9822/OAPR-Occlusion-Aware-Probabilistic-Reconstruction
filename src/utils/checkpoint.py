@@ -54,7 +54,7 @@ def load_checkpoint(path, model, optimizer=None, scheduler=None, device='cpu'):
         raise FileNotFoundError(f"Checkpoint not found: {path}")
 
     logger.info(f"Loading checkpoint from {path}")
-    ckpt = torch.load(path, map_location=device)
+    ckpt = torch.load(path, map_location=device, weights_only=False)
 
     # Load model weights
     state_dict = ckpt['model_state_dict']
@@ -92,7 +92,7 @@ def load_pretrained_backbone(model, pretrained_path, backbone_key='backbone'):
         pretrained_path: path to pretrained .pth
         backbone_key: key prefix for backbone in state_dict
     """
-    ckpt = torch.load(pretrained_path, map_location='cpu')
+    ckpt = torch.load(pretrained_path, map_location='cpu', weights_only=False)
     state = ckpt.get('model_state_dict', ckpt)
 
     backbone_state = {

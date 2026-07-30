@@ -1,7 +1,10 @@
 # Datasets & large files (re-downloaded in Colab/training)
-data/
+/data/
 *.zip
 .torch_cache/
+*.mp4
+video_pose_output/
+.matplotlib_cache/
 
 # Python environments
 venv/
