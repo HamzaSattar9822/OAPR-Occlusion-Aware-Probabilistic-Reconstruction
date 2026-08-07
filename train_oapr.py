@@ -1,4 +1,8 @@
 """
+LEGACY entrypoint. Prefer GPU jobs:
+
+    python gpu_jobs/06_train.py --checkpoint ... --config ... --out ...
+
 train_oapr.py — Unified training script for Milestones 2 & 3
 
 Trains the complete OAPR framework:

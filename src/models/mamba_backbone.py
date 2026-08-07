@@ -17,9 +17,16 @@ logger = logging.getLogger(__name__)
 
 try:
     from mamba_ssm import Mamba
+    MAMBA_AVAILABLE = True
 except ImportError:
-    logger.warning("mamba_ssm not installed. Using fallback attention-based temporal modeling.")
     Mamba = None
+    MAMBA_AVAILABLE = False
+    msg = (
+        "mamba_ssm not installed — temporal path will use "
+        "attention fallback (TemporalTransformerFallback)."
+    )
+    logger.warning(msg)
+    print(f"[OAPR] {msg}")
 
 
 class TemporalMamba(nn.Module):
@@ -189,14 +196,22 @@ class HybridMambaTransformer(nn.Module):
         self.num_keypoints = num_keypoints
         self.seq_len = seq_len
         self.hidden_size = hidden_size
-        self.use_mamba = use_mamba and Mamba is not None
+        self.use_mamba = bool(use_mamba) and MAMBA_AVAILABLE
         
-        # Temporal modeling
+        # Temporal modeling (Mamba optional — attention fallback if missing)
         if self.use_mamba:
-            logger.info(f"Using Mamba for temporal modeling (seq_len={seq_len})")
+            path_msg = f"temporal path ACTIVE: Mamba (seq_len={seq_len})"
+            logger.info(path_msg)
+            print(f"[OAPR] {path_msg}")
             self.temporal = TemporalMamba(hidden_size, num_keypoints, seq_len)
         else:
-            logger.info(f"Mamba not available; using Temporal Transformer fallback")
+            reason = "use_mamba=False" if not use_mamba else "mamba_ssm unavailable"
+            path_msg = (
+                f"temporal path ACTIVE: attention fallback "
+                f"(TemporalTransformerFallback; {reason}; seq_len={seq_len})"
+            )
+            logger.info(path_msg)
+            print(f"[OAPR] {path_msg}")
             self.temporal = TemporalTransformerFallback(
                 hidden_size, num_keypoints, seq_len, num_heads
             )

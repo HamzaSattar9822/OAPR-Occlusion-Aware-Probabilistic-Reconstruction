@@ -240,10 +240,11 @@ class PoseTransform:
             'image': inp_tensor,
             'target': torch.from_numpy(target),
             'target_weight': torch.from_numpy(target_weight),
-            'center': center,
-            'scale': scale,
-            'joints': joints,
-            'joints_vis': joints_vis,
+            'center': torch.from_numpy(np.asarray(center, dtype=np.float32)),
+            'scale': torch.from_numpy(np.asarray(scale, dtype=np.float32)),
+            # Crop-space GT joints for coordinate losses (not heatmaps)
+            'joints': torch.from_numpy(np.asarray(joints, dtype=np.float32)),
+            'joints_vis': torch.from_numpy(np.asarray(joints_vis, dtype=np.float32)),
         }
 
     def _flip(self, image, joints, joints_vis):

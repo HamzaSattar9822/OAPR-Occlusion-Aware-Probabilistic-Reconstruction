@@ -24,7 +24,11 @@ model:
   backbone_type: "mamba"
   
   # Occlusion-aware module (M3 core contribution)
-  occlusion_threshold: 0.5
+  occlusion_threshold: 0.5          # τ — confidence-gate threshold
+  confidence_beta: 0.5              # β — heatmap vs backbone confidence blend
+  use_gcn: true
+  use_lstm: true
+  use_confidence_gate: true
   reconstruct_occluded: true   # Enable occlusion reconstruction
   
   # Input/output

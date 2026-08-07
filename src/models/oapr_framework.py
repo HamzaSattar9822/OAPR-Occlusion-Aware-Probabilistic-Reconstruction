@@ -50,7 +50,9 @@ class OAPRFramework(nn.Module):
                  occlusion_threshold=0.5, loss_type='cauchy_mixture',
                  backbone_type='mamba', hrnet_version='w32',
                  pretrained=True, heatmap_size=(64, 48),
-                 image_size=(192, 256), use_dark=True):
+                 image_size=(192, 256), use_dark=True,
+                 confidence_beta=0.5,
+                 use_gcn=True, use_lstm=True, use_confidence_gate=True):
         super().__init__()
 
         self.num_keypoints = num_keypoints
@@ -60,6 +62,8 @@ class OAPRFramework(nn.Module):
         self.image_size = tuple(image_size)  # (W, H)
         self.heatmap_size = tuple(heatmap_size)
         self.use_dark = use_dark
+        self.confidence_beta = float(confidence_beta)  # β: blend heatmap peak vs backbone conf
+        self.occlusion_threshold = float(occlusion_threshold)  # τ
 
         logger.info(f"Building OAPR Framework (seq_len={seq_len}, hidden={hidden_size})")
 
@@ -92,6 +96,9 @@ class OAPRFramework(nn.Module):
             num_joints=num_keypoints,
             seq_len=seq_len,
             occlusion_threshold=occlusion_threshold,
+            use_gcn=use_gcn,
+            use_lstm=use_lstm,
+            use_confidence_gate=use_confidence_gate,
         )
         logger.info("✓ Occlusion module initialized")
 
@@ -102,6 +109,30 @@ class OAPRFramework(nn.Module):
             occlusion_loss_weight=0.1,
         )
         logger.info(f"✓ Robust loss initialized ({loss_type})")
+
+    def set_ablation(self, use_gcn=None, use_lstm=None, use_confidence_gate=None,
+                     use_mamba=None, occlusion_threshold=None, confidence_beta=None):
+        """
+        Runtime ablation / sensitivity controls for gpu_jobs scripts.
+
+        Note: toggling use_mamba after init cannot swap the temporal module
+        weights; rebuild the model with use_mamba=False for a true Mamba-off run.
+        """
+        self.occlusion_module.set_ablation(
+            use_gcn=use_gcn,
+            use_lstm=use_lstm,
+            use_confidence_gate=use_confidence_gate,
+            occlusion_threshold=occlusion_threshold,
+        )
+        if occlusion_threshold is not None:
+            self.occlusion_threshold = float(occlusion_threshold)
+        if confidence_beta is not None:
+            self.confidence_beta = float(confidence_beta)
+        if use_mamba is not None:
+            # Informational only after construction — see docstring
+            self.backbone.use_mamba = bool(use_mamba) and getattr(
+                self.backbone, 'use_mamba', False
+            )
 
     def forward(self, images, return_intermediate=False):
         """
@@ -163,8 +194,9 @@ class OAPRFramework(nn.Module):
         predictions = backbone_output
         confidence = backbone_output[:, :, 2:3]  # (B, K, 1)
         if hm_conf is not None:
-            # Blend heatmap peak score into backbone confidence
-            confidence = 0.5 * confidence + 0.5 * hm_conf.clamp(0, 1)
+            # β blends heatmap peak confidence with backbone confidence
+            beta = self.confidence_beta
+            confidence = (1.0 - beta) * confidence + beta * hm_conf.clamp(0, 1)
 
         # Stage 2: Occlusion-aware reconstruction with real backbone features
         oapr_output = self.occlusion_module(
@@ -298,6 +330,10 @@ def build_oapr_framework(cfg):
         heatmap_size=heatmap_size,
         image_size=image_size,
         use_dark=use_dark,
+        confidence_beta=model_cfg.get('confidence_beta', 0.5),
+        use_gcn=model_cfg.get('use_gcn', True),
+        use_lstm=model_cfg.get('use_lstm', True),
+        use_confidence_gate=model_cfg.get('use_confidence_gate', True),
     )
 
     return model

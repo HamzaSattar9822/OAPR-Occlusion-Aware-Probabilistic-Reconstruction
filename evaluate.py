@@ -1,5 +1,9 @@
 # evaluate.py
 """
+LEGACY entrypoint. Prefer GPU jobs:
+
+    python gpu_jobs/01_evaluate.py --checkpoint ... --config ... --out ...
+
 Milestone 1 — Evaluation Script
 Runs a trained model on COCO val / CrowdPose test and reports AP metrics.
 Also generates qualitative visualizations of predictions.
