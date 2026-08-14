@@ -1,223 +1,210 @@
 """
-Occlusion-Aware Pose Reconstruction (OAPR) Module.
+Occlusion-Aware Pose Reconstruction (OAPR) — GCN skeleton-graph module.
 
-Detects occluded joints using uncertainty estimates and reconstructs them using:
-- Temporal context (motion continuity) — LSTM branch
-- Spatial context (joint relationships) — GCN / graph branch
-- Confidence gate — occlusion mask from inverse confidence vs τ
+Detects occluded joints with a confidence gate (threshold τ) and reconstructs
+them with a GCN over the COCO skeleton graph. No LSTM / temporal branch.
 
-Supports runtime ablation toggles used by gpu_jobs/02_ablation.py.
+Article fusion (β-blend):
+    p* = (1 − m) · p + m · (β · p_recon + (1 − β) · p)
 """
 
+from __future__ import annotations
+
 import logging
+
 import torch
 import torch.nn as nn
-from einops import rearrange, repeat
+from einops import rearrange
 
 logger = logging.getLogger(__name__)
+
+# Undirected COCO-17 skeleton edges for the GCN
+COCO_SKELETON_EDGES = [
+    (0, 1), (0, 2), (1, 3), (2, 4),
+    (5, 6),
+    (5, 7), (7, 9), (6, 8), (8, 10),
+    (5, 11), (6, 12),
+    (11, 12),
+    (11, 13), (13, 15), (12, 14), (14, 16),
+]
 
 
 class OcclusionDetector(nn.Module):
     """Confidence-gate occlusion detector (threshold τ)."""
 
-    def __init__(self, hidden_size=256, num_joints=17, occlusion_threshold=0.5):
+    def __init__(self, num_joints: int = 17, occlusion_threshold: float = 0.5):
         super().__init__()
-        self.hidden_size = hidden_size
         self.num_joints = num_joints
-        self.occlusion_threshold = occlusion_threshold
-        self.occlusion_correlation = nn.Parameter(
-            torch.ones(num_joints, num_joints) / num_joints
-        )
+        self.occlusion_threshold = float(occlusion_threshold)
 
-    def forward(self, predictions, confidence):
+    def forward(self, confidence: torch.Tensor):
         """
         Args:
-            predictions: (B, K, 2)
             confidence: (B, K, 1)
         Returns:
-            occluded_mask: (B, K)
+            occluded_mask m: (B, K)  — 1 = reconstruct
             occlusion_score: (B, K)
         """
-        occlusion_soft = 1.0 - confidence.squeeze(-1)  # (B, K)
+        occlusion_soft = 1.0 - confidence.squeeze(-1)
         occluded_mask = (occlusion_soft > self.occlusion_threshold).float()
         return occluded_mask, occlusion_soft
 
 
-class SpatialContextEncoder(nn.Module):
-    """Graph / GCN-style spatial context over COCO skeleton edges."""
+class SkeletonGCN(nn.Module):
+    """One-hop message passing over the COCO skeleton graph."""
 
-    def __init__(self, hidden_size=256, num_joints=17):
+    def __init__(self, hidden_size: int = 256, num_joints: int = 17):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_joints = num_joints
-        self.coco_skeleton = [
-            (0, 1), (0, 2), (1, 3), (2, 4),
-            (5, 6),
-            (5, 7), (7, 9), (6, 8), (8, 10),
-            (5, 11), (6, 12),
-            (11, 12),
-            (11, 13), (13, 15), (12, 14), (14, 16),
-        ]
-        self.edge_embed = nn.Embedding(len(self.coco_skeleton), hidden_size)
-        self.graph_conv = nn.Linear(hidden_size * 2, hidden_size)
+        self.edges = COCO_SKELETON_EDGES
+        self.msg = nn.Linear(hidden_size * 2, hidden_size)
         self.norm = nn.LayerNorm(hidden_size)
+        self.act = nn.ReLU(inplace=True)
 
-    def forward(self, joint_features):
+    def forward(self, joint_features: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            joint_features: (B, K, C)
+        Returns:
+            (B, K, C) graph-refined features
+        """
         B, K, C = joint_features.shape
-        spatial_context = joint_features.clone()
-        for edge_idx, (i, j) in enumerate(self.coco_skeleton):
-            if i < K and j < K:
-                neighbor_feat = torch.cat([
-                    joint_features[:, i, :],
-                    joint_features[:, j, :],
-                ], dim=-1)
-                aggregated = self.graph_conv(neighbor_feat)
-                spatial_context[:, i, :] = spatial_context[:, i, :] + aggregated * 0.1
-        return self.norm(spatial_context)
+        agg = torch.zeros_like(joint_features)
+        counts = joint_features.new_zeros(B, K, 1)
+        for i, j in self.edges:
+            if i >= K or j >= K:
+                continue
+            pair_ij = torch.cat(
+                [joint_features[:, i, :], joint_features[:, j, :]], dim=-1
+            )
+            pair_ji = torch.cat(
+                [joint_features[:, j, :], joint_features[:, i, :]], dim=-1
+            )
+            msg_ij = self.act(self.msg(pair_ij))
+            msg_ji = self.act(self.msg(pair_ji))
+            agg[:, i, :] = agg[:, i, :] + msg_ij
+            agg[:, j, :] = agg[:, j, :] + msg_ji
+            counts[:, i, :] += 1.0
+            counts[:, j, :] += 1.0
+        agg = agg / counts.clamp(min=1.0)
+        return self.norm(joint_features + agg)
 
 
-class TemporalContextEncoder(nn.Module):
-    """LSTM temporal / motion branch."""
+class GCNPoseReconstructor(nn.Module):
+    """Predict reconstructed coordinates from GCN-refined joint features."""
 
-    def __init__(self, hidden_size=256, num_joints=17, seq_len=7):
+    def __init__(self, hidden_size: int = 256, num_joints: int = 17):
         super().__init__()
-        self.hidden_size = hidden_size
-        self.num_joints = num_joints
-        self.seq_len = seq_len
-        self.lstm = nn.LSTM(
-            input_size=2,
-            hidden_size=hidden_size,
-            num_layers=2,
-            batch_first=True,
-            dropout=0.1,
-        )
-        self.motion_head = nn.Linear(hidden_size, 2)
-
-    def forward(self, joint_trajectories):
-        B, T, K, _ = joint_trajectories.shape
-        motion_vectors = []
-        for k in range(K):
-            traj_k = joint_trajectories[:, :, k, :]
-            _, (h_n, _) = self.lstm(traj_k)
-            motion = self.motion_head(h_n[-1])
-            motion_vectors.append(motion)
-        return torch.stack(motion_vectors, dim=1)  # (B, K, 2)
-
-
-class PoseReconstructor(nn.Module):
-    """Multi-context reconstruction (GCN spatial + LSTM temporal)."""
-
-    def __init__(self, hidden_size=256, num_joints=17, seq_len=7):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.num_joints = num_joints
-        self.spatial_encoder = SpatialContextEncoder(hidden_size, num_joints)
-        self.temporal_encoder = TemporalContextEncoder(hidden_size, num_joints, seq_len)
-        self.fusion = nn.Sequential(
-            nn.Linear(hidden_size + 2 + 2, hidden_size),
+        self.gcn = SkeletonGCN(hidden_size, num_joints)
+        self.coord_head = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, 2),
         )
-        self.confidence_head = nn.Sequential(
-            nn.Linear(hidden_size, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1),
-            nn.Sigmoid(),
-        )
 
-    def forward(self, joint_features, predictions, motion_vectors,
-                occluded_mask, joint_trajectories,
-                use_gcn=True, use_lstm=True):
-        B, K, C = joint_features.shape
-
-        if use_gcn:
-            spatial_ctx = self.spatial_encoder(joint_features)
-        else:
-            spatial_ctx = joint_features
-
-        if use_lstm:
-            temporal_ctx = self.temporal_encoder(joint_trajectories)
-        else:
-            temporal_ctx = torch.zeros_like(predictions)
-
-        fused = torch.cat([spatial_ctx, predictions, temporal_ctx], dim=-1)
-        reconstructed = self.fusion(fused)
-        recon_conf = self.confidence_head(spatial_ctx)
-
-        occluded_expanded = rearrange(occluded_mask, 'b k -> b k 1')
-        final_coords = (
-            predictions * (1 - occluded_expanded)
-            + reconstructed * occluded_expanded
-        )
-        final_conf = 0.7 * recon_conf * occluded_expanded + (1 - occluded_expanded)
-        return final_coords, final_conf
+    def forward(self, joint_features: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            joint_features: (B, K, C)
+        Returns:
+            p_recon: (B, K, 2)
+        """
+        refined = self.gcn(joint_features)
+        return self.coord_head(refined)
 
 
 class OcclusionAwarePoseReconstruction(nn.Module):
-    """Detect + reconstruct occluded joints (with ablation toggles)."""
+    """
+    Occlusion gate (τ) + GCN reconstruction + β-blend fusion.
 
-    def __init__(self, hidden_size=256, num_joints=17, seq_len=7,
-                 occlusion_threshold=0.5,
-                 use_gcn=True, use_lstm=True, use_confidence_gate=True):
+        p* = (1 − m) · p + m · (β · p_recon + (1 − β) · p)
+    """
+
+    def __init__(
+        self,
+        hidden_size: int = 256,
+        num_joints: int = 17,
+        occlusion_threshold: float = 0.5,
+        fusion_beta: float = 0.5,
+        use_gcn: bool = True,
+        use_confidence_gate: bool = True,
+    ):
         super().__init__()
-        self.detector = OcclusionDetector(
-            hidden_size, num_joints, occlusion_threshold
-        )
-        self.reconstructor = PoseReconstructor(hidden_size, num_joints, seq_len)
-        self.use_gcn = use_gcn
-        self.use_lstm = use_lstm
-        self.use_confidence_gate = use_confidence_gate
+        self.detector = OcclusionDetector(num_joints, occlusion_threshold)
+        self.reconstructor = GCNPoseReconstructor(hidden_size, num_joints)
+        self.fusion_beta = float(fusion_beta)
+        self.use_gcn = bool(use_gcn)
+        self.use_confidence_gate = bool(use_confidence_gate)
 
-    def set_ablation(self, use_gcn=None, use_lstm=None, use_confidence_gate=None,
-                     occlusion_threshold=None):
-        """Runtime ablation / sensitivity knobs (no weight reload)."""
+    def set_ablation(
+        self,
+        use_gcn=None,
+        use_confidence_gate=None,
+        occlusion_threshold=None,
+        fusion_beta=None,
+    ):
         if use_gcn is not None:
             self.use_gcn = bool(use_gcn)
-        if use_lstm is not None:
-            self.use_lstm = bool(use_lstm)
         if use_confidence_gate is not None:
             self.use_confidence_gate = bool(use_confidence_gate)
         if occlusion_threshold is not None:
             self.detector.occlusion_threshold = float(occlusion_threshold)
+        if fusion_beta is not None:
+            self.fusion_beta = float(fusion_beta)
 
-    def forward(self, joint_features, predictions, confidence, joint_trajectories):
-        pred_coords = predictions[:, :, :2]
+    def forward(
+        self,
+        joint_features: torch.Tensor,
+        predictions: torch.Tensor,
+        confidence: torch.Tensor,
+    ):
+        """
+        Args:
+            joint_features: (B, K, C)
+            predictions p: (B, K, 2)
+            confidence: (B, K, 1)
+        """
+        p = predictions[:, :, :2]
 
         if self.use_confidence_gate:
-            occluded_mask, occlusion_score = self.detector(pred_coords, confidence)
+            m, occlusion_score = self.detector(confidence)
         else:
-            # Gate OFF → never trigger reconstruction (pass-through backbone)
-            occluded_mask = torch.zeros(
-                pred_coords.shape[:2], device=pred_coords.device, dtype=pred_coords.dtype
-            )
+            m = torch.zeros(p.shape[:2], device=p.device, dtype=p.dtype)
             occlusion_score = 1.0 - confidence.squeeze(-1)
 
-        reconstructed_coords, reconstructed_conf = self.reconstructor(
-            joint_features, pred_coords,
-            None,
-            occluded_mask,
-            joint_trajectories,
-            use_gcn=self.use_gcn,
-            use_lstm=self.use_lstm,
-        )
+        if self.use_gcn:
+            p_recon = self.reconstructor(joint_features)
+        else:
+            p_recon = p
+
+        # p* = (1−m)·p + m·(β·p_recon + (1−β)·p)
+        beta = self.fusion_beta
+        m_exp = rearrange(m, "b k -> b k 1")
+        blended = beta * p_recon + (1.0 - beta) * p
+        p_star = (1.0 - m_exp) * p + m_exp * blended
 
         return {
-            'coordinates': reconstructed_coords,
-            'confidence': reconstructed_conf,
-            'occlusion_mask': occluded_mask,
-            'occlusion_score': occlusion_score,
+            "coordinates": p_star,
+            "confidence": confidence,
+            "occlusion_mask": m,
+            "occlusion_score": occlusion_score,
+            "p_recon": p_recon,
         }
 
 
-def build_oapr_module(cfg):
-    model_cfg = cfg.get('model', {})
+def build_oapr_module(cfg) -> OcclusionAwarePoseReconstruction:
+    model_cfg = cfg.get("model", {})
+    # fusion_beta (β); accept legacy key confidence_beta
+    fusion_beta = model_cfg.get(
+        "fusion_beta", model_cfg.get("confidence_beta", 0.5)
+    )
     return OcclusionAwarePoseReconstruction(
-        hidden_size=model_cfg.get('hidden_size', 256),
-        num_joints=model_cfg.get('num_keypoints', 17),
-        seq_len=model_cfg.get('seq_len', 7),
-        occlusion_threshold=model_cfg.get('occlusion_threshold', 0.5),
-        use_gcn=model_cfg.get('use_gcn', True),
-        use_lstm=model_cfg.get('use_lstm', True),
-        use_confidence_gate=model_cfg.get('use_confidence_gate', True),
+        hidden_size=model_cfg.get("hidden_size", 256),
+        num_joints=model_cfg.get("num_keypoints", 17),
+        occlusion_threshold=model_cfg.get("occlusion_threshold", 0.5),
+        fusion_beta=fusion_beta,
+        use_gcn=model_cfg.get("use_gcn", True),
+        use_confidence_gate=model_cfg.get("use_confidence_gate", True),
     )

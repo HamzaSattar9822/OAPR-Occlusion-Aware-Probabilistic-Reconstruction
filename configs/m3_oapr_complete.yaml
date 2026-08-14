@@ -1,6 +1,6 @@
 ---
-# Milestone 3: OAPR Complete Model with Occlusion Module + Robust Loss
-# Configuration for full framework with occlusion-aware reconstruction
+# OAPR complete model (single-image article pipeline)
+# HRNet-W32 → Hybrid Mamba-Transformer (joints) → confidence → GCN → Cauchy-mixture
 
 experiment:
   name: "oapr_m3_complete"
@@ -11,28 +11,24 @@ experiment:
 model:
   name: "oapr_complete"
   num_keypoints: 17
-  sigma: 2.0                  # Gaussian heatmap standard deviation
-  version: "w32"              # HRNet image-encoder width
+  sigma: 2.0
+  version: "w32"
   pretrained: true
-  
-  # Spatiotemporal backbone (M2)
-  seq_len: 7
+
+  # Hybrid Mamba–Transformer joint encoder (sequence = K joints, not time)
   hidden_size: 256
   num_heads: 8
-  num_spatial_layers: 4        # Increased from M2
+  num_spatial_layers: 4
   use_mamba: true
-  backbone_type: "mamba"
-  
-  # Occlusion-aware module (M3 core contribution)
-  occlusion_threshold: 0.5          # τ — confidence-gate threshold
-  confidence_beta: 0.5              # β — heatmap vs backbone confidence blend
+
+  # Occlusion-aware reconstruction
+  occlusion_threshold: 0.5   # τ — confidence-gate threshold
+  fusion_beta: 0.5           # β — reconstruction blend in p*
   use_gcn: true
-  use_lstm: true
   use_confidence_gate: true
-  reconstruct_occluded: true   # Enable occlusion reconstruction
-  
-  # Input/output
-  image_size: [192, 256]
+  reconstruct_occluded: true
+
+  image_size: [192, 256]     # [W, H] → tensor (B, 3, 256, 192)
   heatmap_size: [64, 48]
 
 dataset:
@@ -42,7 +38,7 @@ dataset:
   val_ann: "annotations/person_keypoints_val2017.json"
   image_size: [192, 256]
   heatmap_size: [64, 48]
-  
+
   augmentation:
     flip: true
     flip_pairs:
@@ -57,8 +53,7 @@ dataset:
     rotation: 40
     scale: [0.65, 1.35]
     color_jitter: true
-    # Extra augmentation for occlusion robustness
-    erasing_prob: 0.2           # Random occlusion simulation
+    erasing_prob: 0.2
     occlusion_patch_size: [20, 40]
 
 training:
@@ -66,28 +61,25 @@ training:
   batch_size: 16
   num_workers: 8
   pin_memory: true
-  
+
   optimizer:
     type: "adam"
     lr: 0.0005
     weight_decay: 0.0001
-  
+
   scheduler:
     type: "multistep"
     milestones: [100, 130]
     gamma: 0.1
-  
-  # M3: Robust probabilistic losses
+
   loss:
-    type: "cauchy_mixture"      # Heavy-tailed distribution
-    scale_loss_weight: 0.1      # Uncertainty regularization
-    occlusion_loss_weight: 0.15 # Occlusion-aware weighting
+    type: "cauchy_mixture"
+    scale_loss_weight: 0.1
+    occlusion_loss_weight: 0.15
     use_target_weight: true
-  
+
   amp: true
   clip_grad_norm: 1.0
-  
-  # Warmup for stable training
   warmup_epochs: 10
   warmup_lr: 0.00001
 
@@ -95,17 +87,14 @@ evaluation:
   interval: 5
   flip_test: true
   post_processing: "dark"
-  
-  # M3 specific evaluations
-  compute_occlusion_metrics: true      # Evaluate occlusion robustness
-  compute_temporal_stability: true     # Frame consistency
-  crowdpose_eval: true                 # Evaluate on CrowdPose
+  compute_occlusion_metrics: true
+  crowdpose_eval: true
 
 logging:
   use_tensorboard: true
   print_freq: 50
   save_checkpoint_freq: 5
-  log_occlusion_detections: true       # Log occlusion predictions
+  log_occlusion_detections: true
 
 hardware:
   gpus: [0]

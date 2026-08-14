@@ -3,9 +3,8 @@
 
 Ablations (each run is full-model minus ONE component):
   - full               : all components ON
-  - no_gcn             : GCN / spatial graph reconstruction OFF
-  - no_lstm            : LSTM temporal branch OFF
-  - no_mamba           : rebuild with use_mamba=False (attention fallback)
+  - no_gcn             : GCN skeleton-graph reconstruction OFF
+  - no_mamba           : rebuild with use_mamba=False (joint attention fallback)
   - no_confidence_gate : occlusion confidence gate OFF (pass-through)
 
 Usage:
@@ -36,7 +35,6 @@ from _common import (  # noqa: E402
 ABLATIONS = (
     {"name": "full", "flags": {}},
     {"name": "no_gcn", "flags": {"use_gcn": False}},
-    {"name": "no_lstm", "flags": {"use_lstm": False}},
     {"name": "no_mamba", "flags": {"use_mamba": False}, "rebuild": True},
     {"name": "no_confidence_gate", "flags": {"use_confidence_gate": False}},
 )
@@ -64,7 +62,6 @@ def main():
         flags = abl["flags"]
 
         if abl.get("rebuild"):
-            # True Mamba-off requires rebuilding temporal module
             cfg_run.setdefault("model", {})["use_mamba"] = False
             model = load_model(cfg_run, args.checkpoint, device)
         else:
@@ -79,7 +76,10 @@ def main():
             "metrics": {k: float(v) for k, v in metrics.items()},
         }
         rows.append(row)
-        print(f"[02_ablation] {abl['name']}: AP={row['metrics'].get('AP', float('nan')):.4f}")
+        print(
+            f"[02_ablation] {abl['name']}: "
+            f"AP={row['metrics'].get('AP', float('nan')):.4f}"
+        )
 
     payload = {
         "job": "02_ablation",

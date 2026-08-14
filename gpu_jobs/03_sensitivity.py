@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""03_sensitivity.py — Sweep occlusion threshold τ and confidence blend β.
+"""03_sensitivity.py — Sweep occlusion threshold τ and fusion blend β.
 
-τ = model.occlusion_threshold (confidence gate)
-β = model.confidence_beta (heatmap vs backbone confidence blend)
+τ = occlusion_threshold (confidence gate)
+β = fusion_beta in p* = (1−m)·p + m·(β·p_recon + (1−β)·p)
 
 Prints / saves AP for each value. No fabricated numbers.
 
@@ -48,7 +48,7 @@ def parse_args():
         nargs="*",
         type=float,
         default=[0.0, 0.25, 0.5, 0.75, 1.0],
-        help="Confidence blend β values",
+        help="Fusion blend β values",
     )
     return p.parse_args()
 
@@ -61,7 +61,9 @@ def main():
     model = load_model(cfg, args.checkpoint, device)
 
     base_tau = float(getattr(model, "occlusion_threshold", 0.5))
-    base_beta = float(getattr(model, "confidence_beta", 0.5))
+    base_beta = float(
+        getattr(model, "fusion_beta", getattr(model, "confidence_beta", 0.5))
+    )
 
     rows = []
 

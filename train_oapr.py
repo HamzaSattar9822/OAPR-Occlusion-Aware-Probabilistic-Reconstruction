@@ -10,7 +10,7 @@ Trains the complete OAPR framework:
 - Milestone 3: Occlusion-aware reconstruction + robust probabilistic loss
 
 Usage:
-    python train_oapr.py --config configs/m2_mamba_temporal.yaml
+    python train_oapr.py --config configs/m3_oapr_complete.yaml
     python train_oapr.py --config configs/m3_oapr_complete.yaml --resume checkpoints/best.pth
 """
 

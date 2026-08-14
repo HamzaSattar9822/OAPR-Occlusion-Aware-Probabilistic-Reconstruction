@@ -143,23 +143,3 @@ def print_metrics_table(metrics_dict, dataset_name='COCO'):
         except (TypeError, ValueError):
             print(f"  {k:<10}: {v}")
     print(border)
-
-
-def compute_temporal_stability(preds_seq):
-    """
-    Placeholder for temporal stability metric (Milestone 2+).
-    Measures frame-to-frame jitter in joint predictions.
-
-    Args:
-        preds_seq: list of (K, 2) arrays, one per frame
-
-    Returns:
-        jitter: mean per-joint velocity (lower = more stable)
-    """
-    if len(preds_seq) < 2:
-        return 0.0
-    diffs = [
-        np.linalg.norm(preds_seq[i+1] - preds_seq[i], axis=1)
-        for i in range(len(preds_seq) - 1)
-    ]
-    return float(np.mean(diffs))
